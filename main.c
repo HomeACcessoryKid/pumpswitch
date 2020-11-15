@@ -39,6 +39,12 @@
 #ifndef LED_PIN
  #error LED_PIN is not specified
 #endif
+#ifndef SETPOINT
+ #error SETPOINT is not specified
+#endif
+#ifndef HYSTERESIS
+ #error HYSTERESIS is not specified
+#endif
 
 /* ============== BEGIN HOMEKIT CHARACTERISTIC DECLARATIONS =============================================================== */
 
@@ -92,7 +98,7 @@ void identify(homekit_value_t _value) {
 
 #define NAN (0.0F/0.0F)
 void state_task(void *argv) {
-    bool on;
+    bool on=true;
     
     uint8_t scratchpad[8];
     float temp;
@@ -102,14 +108,15 @@ void state_task(void *argv) {
         if (ds18b20_measure(SENSOR_PIN, DS18B20_ANY, true) && ds18b20_read_scratchpad(SENSOR_PIN, DS18B20_ANY, scratchpad)) {
             temp = ((float)(scratchpad[1] << 8 | scratchpad[0]) * 625.0)/10000;
         }
-        on=temp>30.0 ? true:false;
+        if (temp>SETPOINT+HYSTERESIS/2) on=true;
+        if (temp<SETPOINT-HYSTERESIS/2) on=false;
         printf("%f deg C => %d\n", temp, on);
-//        gpio_write(RELAY_PIN, on ? 1 : 0);
+        gpio_write(RELAY_PIN, on ? 1 : 0);
         gpio_write(  LED_PIN, on ? 0 : 1);
         in_use.value.int_value=1-in_use.value.int_value;
-        UDPLUS("In_Use %d\n",in_use.value.int_value);
         homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
-        vTaskDelay(500);
+//         UDPLUS("In_Use %d\n",in_use.value.int_value);
+        vTaskDelay(1000);
     }
 }
 
