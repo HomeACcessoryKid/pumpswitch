@@ -92,20 +92,23 @@ void identify(homekit_value_t _value) {
 
 #define NAN (0.0F/0.0F)
 void state_task(void *argv) {
+    bool on;
+    
     uint8_t scratchpad[8];
     float temp;
     
     while (1) {
-        temp=NAN;
+        temp=99.99;
         if (ds18b20_measure(SENSOR_PIN, DS18B20_ANY, true) && ds18b20_read_scratchpad(SENSOR_PIN, DS18B20_ANY, scratchpad)) {
             temp = ((float)(scratchpad[1] << 8 | scratchpad[0]) * 625.0)/10000;
         }
-        printf("%f deg C\n", temp);
+        on=temp>30.0 ? true:false;
+        printf("%f deg C => %d\n", temp, on);
+//        gpio_write(RELAY_PIN, on ? 1 : 0);
+        gpio_write(  LED_PIN, on ? 0 : 1);
         in_use.value.int_value=1-in_use.value.int_value;
         UDPLUS("In_Use %d\n",in_use.value.int_value);
         homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
-        gpio_write(RELAY_PIN, in_use.value.int_value ? 1 : 0);
-        gpio_write(  LED_PIN, in_use.value.int_value ? 1 : 0);
         vTaskDelay(500);
     }
 }
@@ -135,7 +138,7 @@ void device_init() {
 //     adv_button_register_callback_fn(BUTTON_PIN, singlepress_callback, 1, NULL);
 //     adv_button_register_callback_fn(BUTTON_PIN, doublepress_callback, 2, NULL);
 //     adv_button_register_callback_fn(BUTTON_PIN, longpress_callback, 3, NULL);
-    gpio_enable(LED_PIN, GPIO_OUTPUT); gpio_write(LED_PIN, 1);
+    gpio_enable(LED_PIN, GPIO_OUTPUT); gpio_write(LED_PIN, 0);
     gpio_enable( RELAY_PIN, GPIO_OUTPUT); gpio_write( RELAY_PIN, 1);
     gpio_set_pullup(SENSOR_PIN, true, true);
     xTaskCreate(state_task, "State", 512, NULL, 1, NULL);
