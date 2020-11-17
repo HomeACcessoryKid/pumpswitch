@@ -46,8 +46,9 @@
  #error HYSTERESIS is not specified
 #endif
 
-/* ============== BEGIN HOMEKIT CHARACTERISTIC DECLARATIONS =============================================================== */
+int inhibit=0; //seconds pump will be inhibited
 
+/* ============== BEGIN HOMEKIT CHARACTERISTIC DECLARATIONS =============================================================== */
 // add this section to make your device OTA capable
 // create the extra characteristic &ota_trigger, at the end of the primary service (before the NULL)
 // it can be used in Eve, which will show it, where Home does not
@@ -68,8 +69,8 @@ homekit_characteristic_t revision     = HOMEKIT_CHARACTERISTIC_(FIRMWARE_REVISIO
 
 homekit_value_t active_get();
 void active_set(homekit_value_t value);
-homekit_characteristic_t active       = HOMEKIT_CHARACTERISTIC_(ACTIVE,   0, .getter=active_get, .setter=active_set);
-homekit_characteristic_t in_use      = HOMEKIT_CHARACTERISTIC_(IN_USE,0                                          );
+homekit_characteristic_t active = HOMEKIT_CHARACTERISTIC_(ACTIVE, 0, .getter=active_get, .setter=active_set);
+homekit_characteristic_t in_use = HOMEKIT_CHARACTERISTIC_(IN_USE, 0                                        );
 
 
 homekit_value_t active_get() {
@@ -97,9 +98,13 @@ void identify(homekit_value_t _value) {
 
 
 #define NAN (0.0F/0.0F)
+#define BEAT 10 //in seconds
+#define REPEAT 43200 //in seconds = 12 hours
+#define RUN 120 //in seconds
+#define INUSE 3*BEAT //in seconds, must be multiple of BEAT
 void state_task(void *argv) {
     bool on=true;
-    
+    int timer=REPEAT;
     uint8_t scratchpad[8];
     float temp;
     
@@ -110,13 +115,32 @@ void state_task(void *argv) {
         }
         if (temp>SETPOINT+HYSTERESIS/2) on=true;
         if (temp<SETPOINT-HYSTERESIS/2) on=false;
-        printf("%f deg C => %d\n", temp, on);
+        if (inhibit) {on=false; inhibit-=BEAT;}
+        timer-=BEAT;
+        if (timer<=0  ) timer=REPEAT;
+        if (timer<=RUN) on=true;
+        printf("%2.3fC inh=%d => %d\n", temp, inhibit, on);
         gpio_write(RELAY_PIN, on ? 1 : 0);
         gpio_write(  LED_PIN, on ? 0 : 1);
-        in_use.value.int_value=1-in_use.value.int_value;
-        homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
-//         UDPLUS("In_Use %d\n",in_use.value.int_value);
-        vTaskDelay(1000);
+        vTaskDelay(BEAT*1000/portTICK_PERIOD_MS);
+    }
+}
+
+void inuse_task(void *argv) {
+    while (1) {
+        if (!active.value.int_value) {
+            in_use.value.int_value=0;
+            homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
+            UDPLUS("In_Use %d ... waiting 1 second ... ",in_use.value.int_value);
+            vTaskDelay(1000/portTICK_PERIOD_MS);
+            inhibit=INUSE;
+            in_use.value.int_value=1;
+            active.value.int_value=1;
+            homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
+            homekit_characteristic_notify(&active,HOMEKIT_UINT8(active.value.int_value));
+            UDPLUS("In_Use %d\n",in_use.value.int_value);
+        }
+        vTaskDelay(1000/portTICK_PERIOD_MS);
     }
 }
 
@@ -149,6 +173,7 @@ void device_init() {
     gpio_enable( RELAY_PIN, GPIO_OUTPUT); gpio_write( RELAY_PIN, 1);
     gpio_set_pullup(SENSOR_PIN, true, true);
     xTaskCreate(state_task, "State", 512, NULL, 1, NULL);
+    xTaskCreate(inuse_task, "InUse", 512, NULL, 1, NULL);
 }
 
 homekit_accessory_t *accessories[] = {
