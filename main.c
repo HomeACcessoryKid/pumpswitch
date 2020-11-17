@@ -69,8 +69,8 @@ homekit_characteristic_t revision     = HOMEKIT_CHARACTERISTIC_(FIRMWARE_REVISIO
 
 homekit_value_t active_get();
 void active_set(homekit_value_t value);
-homekit_characteristic_t active = HOMEKIT_CHARACTERISTIC_(ACTIVE, 0, .getter=active_get, .setter=active_set);
-homekit_characteristic_t in_use = HOMEKIT_CHARACTERISTIC_(IN_USE, 0                                        );
+homekit_characteristic_t active = HOMEKIT_CHARACTERISTIC_(ACTIVE, 1, .getter=active_get, .setter=active_set);
+homekit_characteristic_t in_use = HOMEKIT_CHARACTERISTIC_(IN_USE, 1                                        );
 
 
 homekit_value_t active_get() {
@@ -81,7 +81,7 @@ void active_set(homekit_value_t value) {
         UDPLUS("Invalid active-value format: %d\n", value.format);
         return;
     }
-    UDPLUS("T:%3d\n",value.int_value);
+    UDPLUS("Active:%3d\n",value.int_value);
     active.value=value;
 }
 
@@ -101,7 +101,7 @@ void identify(homekit_value_t _value) {
 #define BEAT 10 //in seconds
 #define REPEAT 43200 //in seconds = 12 hours
 #define RUN 120 //in seconds
-#define INUSE 3*BEAT //in seconds, must be multiple of BEAT
+#define INUSE 6*BEAT //in seconds, must be multiple of BEAT
 void state_task(void *argv) {
     bool on=true;
     int timer=REPEAT;
@@ -115,14 +115,14 @@ void state_task(void *argv) {
         }
         if (temp>SETPOINT+HYSTERESIS/2) on=true;
         if (temp<SETPOINT-HYSTERESIS/2) on=false;
-        if (inhibit) {on=false; inhibit-=BEAT;}
+        if (inhibit) on=false;
         timer-=BEAT;
         if (timer<=0  ) timer=REPEAT;
         if (timer<=RUN) on=true;
         printf("%2.3fC inh=%d => %d\n", temp, inhibit, on);
         gpio_write(RELAY_PIN, on ? 1 : 0);
         gpio_write(  LED_PIN, on ? 0 : 1);
-        vTaskDelay(BEAT*1000/portTICK_PERIOD_MS);
+        vTaskDelay((BEAT*1000-750)/portTICK_PERIOD_MS);
     }
 }
 
@@ -141,6 +141,7 @@ void inuse_task(void *argv) {
             UDPLUS("In_Use %d\n",in_use.value.int_value);
         }
         vTaskDelay(1000/portTICK_PERIOD_MS);
+        if (inhibit) inhibit--;
     }
 }
 
