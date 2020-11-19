@@ -99,14 +99,15 @@ void identify(homekit_value_t _value) {
 
 #define NAN (0.0F/0.0F)
 #define BEAT 10 //in seconds
-#define REPEAT 43200 //in seconds = 12 hours
+#define REPEAT 3600 //in seconds = 12 hours 43200
 #define RUN 120 //in seconds
 #define INUSE 6*BEAT //in seconds, must be multiple of BEAT
 void state_task(void *argv) {
     bool on=true;
-    int timer=REPEAT;
+    int timer=RUN, prev_on=0;
     uint8_t scratchpad[8];
     float temp;
+    char status[40];
     
     while (1) {
         temp=99.99;
@@ -116,10 +117,17 @@ void state_task(void *argv) {
         if (temp>SETPOINT+HYSTERESIS/2) on=true;
         if (temp<SETPOINT-HYSTERESIS/2) on=false;
         if (inhibit) on=false;
+        if (on) prev_on+=BEAT; else prev_on=0;
         timer-=BEAT;
-        if (timer<=0  ) timer=REPEAT;
-        if (timer<=RUN) on=true;
-        printf("%2.3fC inh=%d => %d\n", temp, inhibit, on);
+        if (prev_on>RUN || timer<0) timer=REPEAT;
+        status[0]=0;
+        if (timer<=RUN) {
+            on=true;
+            strcpy(status," TIMER activated");
+        } else {
+            if (inhibit) sprintf(status," inhibited for another %d seconds",inhibit);
+        }
+        printf("%2.3f C => %d%s\n", temp, on, status);
         gpio_write(RELAY_PIN, on ? 1 : 0);
         gpio_write(  LED_PIN, on ? 0 : 1);
         vTaskDelay((BEAT*1000-750)/portTICK_PERIOD_MS);
