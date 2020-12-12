@@ -97,11 +97,10 @@ void identify(homekit_value_t _value) {
 /* ============== END HOMEKIT CHARACTERISTIC DECLARATIONS ================================================================= */
 
 
-#define NAN (0.0F/0.0F)
-#define BEAT 10 //in seconds
-#define REPEAT 3600 //in seconds = 12 hours 43200
-#define RUN 120 //in seconds
-#define INUSE 6*BEAT //in seconds, must be multiple of BEAT
+#define BEAT      10 //in seconds
+#define REPEAT 14400 //in seconds = 4 hours
+#define RUN      120 //in seconds = 2 minutes
+#define STOP_FOR 300 //in seconds = 5 minutes, must be multiple of BEAT
 void state_task(void *argv) {
     bool on=true;
     int timer=RUN, prev_on=0;
@@ -119,7 +118,7 @@ void state_task(void *argv) {
         if (inhibit) on=false;
         if (on) prev_on+=BEAT; else prev_on=0;
         timer-=BEAT;
-        if (prev_on>RUN || timer<0) timer=REPEAT;
+        if (prev_on>RUN || timer<=0) timer=REPEAT;
         status[0]=0;
         if (timer<=RUN) {
             on=true;
@@ -141,7 +140,7 @@ void inuse_task(void *argv) {
             homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
             UDPLUS("In_Use %d ... waiting 1 second ... ",in_use.value.int_value);
             vTaskDelay(1000/portTICK_PERIOD_MS);
-            inhibit=INUSE;
+            inhibit=STOP_FOR;
             in_use.value.int_value=1;
             active.value.int_value=1;
             homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
