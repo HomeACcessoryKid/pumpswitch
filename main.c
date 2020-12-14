@@ -23,7 +23,7 @@
 #include "lwip/api.h"
 // #include <wifi_config.h>
 #include <udplogger.h>
-//#include <adv_button.h>
+#include <adv_button.h>
 #include "ds18b20/ds18b20.h"
 
 #ifndef VERSION
@@ -38,6 +38,9 @@
 #endif
 #ifndef LED_PIN
  #error LED_PIN is not specified
+#endif
+#ifndef BUTTON_PIN
+ #error BUTTON_PIN is not specified
 #endif
 #ifndef SETPOINT
  #error SETPOINT is not specified
@@ -152,31 +155,28 @@ void inuse_task(void *argv) {
     }
 }
 
-// void singlepress_callback(uint8_t gpio, void *args) {
-//             UDPLUS("single press = stop here\n");
-//             active.value.int_value=in_use.value.int_value;
-//             homekit_characteristic_notify(&active,HOMEKIT_UINT8(active.value.int_value));
-// }
-// 
-// void doublepress_callback(uint8_t gpio, void *args) {
-//             UDPLUS("double press = go open\n");
-//             active.value.int_value=100;
-//             homekit_characteristic_notify(&active,HOMEKIT_UINT8(active.value.int_value));
-// }
-// 
-// void longpress_callback(uint8_t gpio, void *args) {
-//             UDPLUS("long press = go close\n");
-//             active.value.int_value=0;
-//             homekit_characteristic_notify(&active,HOMEKIT_UINT8(active.value.int_value));
-// }
+void singlepress_callback(uint8_t gpio, void *args) {
+            UDPLUS("single press = inhibit 15 minutes\n");
+            inhibit=900;
+}
+
+void doublepress_callback(uint8_t gpio, void *args) {
+            UDPLUS("double press = inhibit 1 hour\n");
+            inhibit=3600;
+}
+
+void longpress_callback(uint8_t gpio, void *args) {
+            UDPLUS("long press = stop inhibit\n");
+            inhibit=5;
+}
 
 
 void device_init() {
-//     adv_button_set_evaluate_delay(10);
-//     adv_button_create(BUTTON_PIN, true, false);
-//     adv_button_register_callback_fn(BUTTON_PIN, singlepress_callback, 1, NULL);
-//     adv_button_register_callback_fn(BUTTON_PIN, doublepress_callback, 2, NULL);
-//     adv_button_register_callback_fn(BUTTON_PIN, longpress_callback, 3, NULL);
+    adv_button_set_evaluate_delay(10);
+    adv_button_create(BUTTON_PIN, true, false);
+    adv_button_register_callback_fn(BUTTON_PIN, singlepress_callback, 1, NULL);
+    adv_button_register_callback_fn(BUTTON_PIN, doublepress_callback, 2, NULL);
+    adv_button_register_callback_fn(BUTTON_PIN, longpress_callback, 3, NULL);
     gpio_enable(LED_PIN, GPIO_OUTPUT); gpio_write(LED_PIN, 0);
     gpio_enable( RELAY_PIN, GPIO_OUTPUT); gpio_write( RELAY_PIN, 1);
     gpio_set_pullup(SENSOR_PIN, true, true);
