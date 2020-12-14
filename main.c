@@ -106,8 +106,8 @@ void identify(homekit_value_t _value) {
 #define RUN      120 //in seconds = 2 minutes
 #define STOP_FOR 300 //in seconds = 5 minutes, must be multiple of BEAT
 #define SENSORS    1
-#define  IN        1 //incoming water temperature
-#define OUT        2 //  return water temperature
+#define  IN       14 //incoming water temperature
+#define OUT       10 //  return water temperature
 void state_task(void *argv) {
     bool on=true;
     int timer=RUN, prev_on=0;
