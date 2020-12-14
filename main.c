@@ -25,6 +25,7 @@
 #include <udplogger.h>
 #include <adv_button.h>
 #include "ds18b20/ds18b20.h"
+#include "math.h"
 
 #ifndef VERSION
  #error You must set VERSION=x.y.z to match github version tag x.y.z
@@ -104,20 +105,35 @@ void identify(homekit_value_t _value) {
 #define REPEAT 14400 //in seconds = 4 hours
 #define RUN      120 //in seconds = 2 minutes
 #define STOP_FOR 300 //in seconds = 5 minutes, must be multiple of BEAT
+#define SENSORS    1
+#define  IN        1 //incoming water temperature
+#define OUT        2 //  return water temperature
 void state_task(void *argv) {
     bool on=true;
     int timer=RUN, prev_on=0;
-    uint8_t scratchpad[8];
-    float temp;
     char status[40];
     
-    while (1) {
-        temp=99.99;
-        if (ds18b20_measure(SENSOR_PIN, DS18B20_ANY, true) && ds18b20_read_scratchpad(SENSOR_PIN, DS18B20_ANY, scratchpad)) {
-            temp = ((float)(scratchpad[1] << 8 | scratchpad[0]) * 625.0)/10000;
-        }
-        if (temp>SETPOINT+HYSTERESIS/2) on=true;
-        if (temp<SETPOINT-HYSTERESIS/2) on=false;
+    ds18b20_addr_t addrs[SENSORS];
+    float temps[SENSORS],temp[16];
+    int sensor_count=0,id;
+
+    while( (sensor_count=ds18b20_scan_devices(SENSOR_PIN, addrs, SENSORS)) != SENSORS) {
+        UDPLUS("Only found %d sensors\n",sensor_count);
+        vTaskDelay(BEAT*1000/portTICK_PERIOD_MS);
+    }
+
+    while(1) {
+        ds18b20_measure_and_read_multi(SENSOR_PIN, addrs, SENSORS, temps);
+        for (int j = 0; j < SENSORS; j++) {
+            // The DS18B20 address 64-bit and my batch turns out family C on https://github.com/cpetrich/counterfeit_DS18B20
+            // I have manually selected that I have unique ids using the second hex digit of CRC
+            id = (addrs[j]>>56)&0xF;
+            temp[id] = temps[j];
+            printf("id=%d %2.4f\n",id,temp[j]);
+        } 
+        if (isnan(temp[IN])) temp[IN]=99.99F;
+        if (temp[IN]>SETPOINT+HYSTERESIS/2) on=true;
+        if (temp[IN]<SETPOINT-HYSTERESIS/2) on=false;
         if (inhibit) on=false;
         if (on) prev_on+=BEAT; else prev_on=0;
         timer-=BEAT;
@@ -129,10 +145,10 @@ void state_task(void *argv) {
         } else {
             if (inhibit) sprintf(status," inhibited for another %d seconds",inhibit);
         }
-        printf("%2.3f C => %d%s\n", temp, on, status);
+        printf("R%2.3f - %2.3f C => %d%s\n", temp[OUT], temp[IN], on, status);
         gpio_write(RELAY_PIN, on ? 1 : 0);
         gpio_write(  LED_PIN, on ? 0 : 1);
-        vTaskDelay((BEAT*1000-750)/portTICK_PERIOD_MS);
+        vTaskDelay((BEAT*1000-780)/portTICK_PERIOD_MS);
     }
 }
 
