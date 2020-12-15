@@ -105,7 +105,7 @@ void identify(homekit_value_t _value) {
 #define REPEAT 14400 //in seconds = 4 hours
 #define RUN      120 //in seconds = 2 minutes
 #define STOP_FOR 300 //in seconds = 5 minutes, must be multiple of BEAT
-#define SENSORS    1
+#define SENSORS    2
 #define  IN       14 //incoming water temperature
 #define OUT       10 //  return water temperature
 void state_task(void *argv) {
@@ -129,7 +129,7 @@ void state_task(void *argv) {
             // I have manually selected that I have unique ids using the second hex digit of CRC
             id = (addrs[j]>>56)&0xF;
             temp[id] = temps[j];
-            printf("id=%d %2.4f\n",id,temp[j]);
+//             printf("id=%d %2.4f\n",id,temps[j]);
         } 
         if (isnan(temp[IN])) temp[IN]=99.99F;
         if (temp[IN]>SETPOINT+HYSTERESIS/2) on=true;
