@@ -153,7 +153,7 @@ void state_task(void *argv) {
         gpio_write(  LED_PIN, on ? 0 : 1);
         if (on) {
             old_t=cur_temp.value.float_value;
-            cur_temp.value.float_value=isnan(temp[OUT])?0.0F:(float)(int)(temp[OUT]*10+5)/10;
+            cur_temp.value.float_value=isnan(temp[OUT])?0.0F:(float)(int)(temp[OUT]*10+0.5)/10;
             if (old_t!=cur_temp.value.float_value) \
                 homekit_characteristic_notify(&cur_temp,HOMEKIT_FLOAT(cur_temp.value.float_value));
         }
