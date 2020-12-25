@@ -76,6 +76,8 @@ void active_set(homekit_value_t value);
 homekit_characteristic_t active = HOMEKIT_CHARACTERISTIC_(ACTIVE, 1, .getter=active_get, .setter=active_set);
 homekit_characteristic_t in_use = HOMEKIT_CHARACTERISTIC_(IN_USE, 1                                        );
 
+homekit_characteristic_t cur_temp = HOMEKIT_CHARACTERISTIC_(CURRENT_TEMPERATURE, 1.0                       );
+
 
 homekit_value_t active_get() {
     return HOMEKIT_UINT8(active.value.int_value);
@@ -102,8 +104,8 @@ void identify(homekit_value_t _value) {
 
 
 #define BEAT      10 //in seconds
-#define REPEAT 14400 //in seconds = 4 hours
-#define RUN      120 //in seconds = 2 minutes
+#define REPEAT  3600 //in seconds = 1 hour
+#define RUN      180 //in seconds = 3 minutes
 #define STOP_FOR 300 //in seconds = 5 minutes, must be multiple of BEAT
 #define SENSORS    2
 #define  IN       14 //incoming water temperature
@@ -116,6 +118,7 @@ void state_task(void *argv) {
     ds18b20_addr_t addrs[SENSORS];
     float temps[SENSORS],temp[16];
     int sensor_count=0,id;
+    float old_t;
 
     while( (sensor_count=ds18b20_scan_devices(SENSOR_PIN, addrs, SENSORS)) != SENSORS) {
         UDPLUS("Only found %d sensors\n",sensor_count);
@@ -148,6 +151,12 @@ void state_task(void *argv) {
         printf("R%2.3f - %2.3f C => %d%s\n", temp[OUT], temp[IN], on, status);
         gpio_write(RELAY_PIN, on ? 1 : 0);
         gpio_write(  LED_PIN, on ? 0 : 1);
+        if (on) {
+            old_t=cur_temp.value.float_value;
+            cur_temp.value.float_value=isnan(temp[OUT])?0.0F:(float)(int)(temp[OUT]*2+0.5)/2;
+            if (old_t!=cur_temp.value.float_value) \
+                homekit_characteristic_notify(&cur_temp,HOMEKIT_FLOAT(cur_temp.value.float_value));
+        }
         vTaskDelay((BEAT*1000-780)/portTICK_PERIOD_MS);
     }
 }
@@ -222,6 +231,12 @@ homekit_accessory_t *accessories[] = {
                     &in_use,
                     HOMEKIT_CHARACTERISTIC(VALVE_TYPE, 0),
                     &ota_trigger,
+                    NULL
+                }),
+            HOMEKIT_SERVICE(TEMPERATURE_SENSOR,
+                .characteristics=(homekit_characteristic_t*[]){
+                    HOMEKIT_CHARACTERISTIC(NAME, "ReturnTemp"),
+                    &cur_temp,
                     NULL
                 }),
             NULL
