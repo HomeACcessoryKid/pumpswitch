@@ -137,7 +137,6 @@ void state_task(void *argv) {
         if (isnan(temp[IN])) temp[IN]=99.99F;
         if (temp[IN]>SETPOINT+HYSTERESIS/2) on=true;
         if (temp[IN]<SETPOINT-HYSTERESIS/2) on=false;
-        if (inhibit) on=false;
         if (on) prev_on+=BEAT; else prev_on=0;
         timer-=BEAT;
         if (prev_on>RUN || timer<=0) timer=REPEAT;
@@ -145,8 +144,10 @@ void state_task(void *argv) {
         if (timer<=RUN) {
             on=true;
             strcpy(status," TIMER activated");
-        } else {
-            if (inhibit) sprintf(status," inhibited for another %d seconds",inhibit);
+        }
+        if (inhibit) {
+            on=false;
+            sprintf(status," inhibited for another %d seconds",(inhibit/10)*10);
         }
         printf("R%2.3f - %2.3f C => %d%s\n", temp[OUT], temp[IN], on, status);
         gpio_write(RELAY_PIN, on ? 1 : 0);
@@ -166,14 +167,13 @@ void inuse_task(void *argv) {
         if (!active.value.int_value) {
             in_use.value.int_value=0;
             homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
-            UDPLUS("In_Use %d ... waiting 1 second ... ",in_use.value.int_value);
+            UDPLUS("In_Use 0 ... waiting 1 second ... In_Use 1\n");
             vTaskDelay(1000/portTICK_PERIOD_MS);
             inhibit=STOP_FOR;
             in_use.value.int_value=1;
             active.value.int_value=1;
             homekit_characteristic_notify(&in_use,HOMEKIT_UINT8(in_use.value.int_value));
             homekit_characteristic_notify(&active,HOMEKIT_UINT8(active.value.int_value));
-            UDPLUS("In_Use %d\n",in_use.value.int_value);
         }
         vTaskDelay(1000/portTICK_PERIOD_MS);
         if (inhibit) inhibit--;
