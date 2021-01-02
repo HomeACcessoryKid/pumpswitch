@@ -87,7 +87,7 @@ void active_set(homekit_value_t value) {
         UDPLUS("Invalid active-value format: %d\n", value.format);
         return;
     }
-    UDPLUS("Active:%3d\n",value.int_value);
+//     UDPLUS("Active:%3d\n",value.int_value);
     active.value=value;
 }
 
@@ -106,7 +106,7 @@ void identify(homekit_value_t _value) {
 #define BEAT      10 //in seconds
 #define REPEAT  3600 //in seconds = 1 hour
 #define RUN      180 //in seconds = 3 minutes
-#define STOP_FOR 300 //in seconds = 5 minutes, must be multiple of BEAT
+#define STOP_FOR 180 //in seconds = 3 minutes, must be multiple of BEAT
 #define SENSORS    2
 #define  IN       14 //incoming water temperature
 #define OUT       10 //  return water temperature
@@ -147,7 +147,7 @@ void state_task(void *argv) {
         }
         if (inhibit) {
             on=false;
-            sprintf(status," inhibited for another %d seconds",(inhibit/10)*10);
+            sprintf(status," inhibited for another %d seconds",(inhibit/10+1)*10);
         }
         printf("R%2.3f - %2.3f C => %d%s\n", temp[OUT], temp[IN], on, status);
         gpio_write(RELAY_PIN, on ? 1 : 0);
