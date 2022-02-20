@@ -26,6 +26,8 @@
 #include <adv_button.h>
 #include "ds18b20/ds18b20.h"
 #include "math.h"
+#include "ping.h"
+#include <rboot-api.h>
 
 #ifndef VERSION
  #error You must set VERSION=x.y.z to match github version tag x.y.z
@@ -180,6 +182,32 @@ void inuse_task(void *argv) {
     }
 }
 
+void ping_task(void *argv) {
+    int count=120,delay=1; //seconds
+    ping_result_t res;
+    ip_addr_t to_ping;
+    inet_aton("192.168.178.100",&to_ping); //make this a ota_string variable
+    
+    printf("Pinging IP %s\n", ipaddr_ntoa(&to_ping));
+    while(1){
+        ping_ip(to_ping, &res);
+
+        if (res.result_code == PING_RES_ECHO_REPLY) {
+            count+=10; delay+=5;
+            printf("good ping from %s %u ms -> count: %d s\n", ipaddr_ntoa(&res.response_ip), res.response_time_ms, count);
+        } else {
+            count--; delay=1;
+            printf("failed ping err %d -> count: %d s\n", res.result_code, count);
+        }
+        if (count==0) {
+            printf("restarting because can't ping home-hub\n");
+            sdk_system_restart();  //#include <rboot-api.h>
+        }
+        if (count>120) count=120; if (delay>60) delay=60;
+        vTaskDelay(delay*(1000/portTICK_PERIOD_MS));
+    }
+}
+
 void singlepress_callback(uint8_t gpio, void *args) {
             UDPLUS("single press = inhibit 15 minutes\n");
             inhibit=900;
@@ -207,6 +235,7 @@ void device_init() {
     gpio_set_pullup(SENSOR_PIN, true, true);
     xTaskCreate(state_task, "State", 512, NULL, 1, NULL);
     xTaskCreate(inuse_task, "InUse", 512, NULL, 1, NULL);
+    xTaskCreate( ping_task, "PingT", 512, NULL, 1, NULL);
 }
 
 homekit_accessory_t *accessories[] = {
