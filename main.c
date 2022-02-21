@@ -28,6 +28,8 @@
 #include "math.h"
 #include "ping.h"
 #include <rboot-api.h>
+#include "mqtt-client.h"
+#include <sysparam.h>
 
 #ifndef VERSION
  #error You must set VERSION=x.y.z to match github version tag x.y.z
@@ -51,6 +53,16 @@
 #ifndef HYSTERESIS
  #error HYSTERESIS is not specified
 #endif
+
+int idx; //the domoticz base index
+#define PUBLISH(name) do {int n=mqtt_client_publish("{\"idx\":%d,\"nvalue\":0,\"svalue\":\"%.1f\"}", idx+name##_ix, name##_fv); \
+                            if (n<0) printf("MQTT publish of %s failed because %s\n",#name,MQTT_CLIENT_ERROR(n)); \
+                           } while(0)
+#define tIN_fv  temp[IN]
+#define tIN_ix  0
+#define tOUT_fv temp[OUT]
+#define tOUT_ix 1
+char    *pinger_target=NULL;
 
 int inhibit=0; //seconds pump will be inhibited
 
@@ -152,6 +164,8 @@ void state_task(void *argv) {
             sprintf(status," inhibited for another %d seconds",(inhibit/10+1)*10);
         }
         printf("R%2.3f - %2.3f C => %d%s\n", temp[OUT], temp[IN], on, status);
+        PUBLISH(tIN);
+        PUBLISH(tOUT);
         gpio_write(RELAY_PIN, on ? 1 : 0);
         gpio_write(  LED_PIN, on ? 0 : 1);
         if (on) {
@@ -186,7 +200,7 @@ void ping_task(void *argv) {
     int count=120,delay=1; //seconds
     ping_result_t res;
     ip_addr_t to_ping;
-    inet_aton("192.168.178.100",&to_ping); //make this a ota_string variable
+    inet_aton(pinger_target,&to_ping);
     
     printf("Pinging IP %s\n", ipaddr_ntoa(&to_ping));
     while(1){
@@ -194,6 +208,7 @@ void ping_task(void *argv) {
 
         if (res.result_code == PING_RES_ECHO_REPLY) {
             count+=10; delay+=5;
+            if (count>120) count=120; if (delay>60) delay=60;
             printf("good ping from %s %u ms -> count: %d s\n", ipaddr_ntoa(&res.response_ip), res.response_time_ms, count);
         } else {
             count--; delay=1;
@@ -203,7 +218,6 @@ void ping_task(void *argv) {
             printf("restarting because can't ping home-hub\n");
             sdk_system_restart();  //#include <rboot-api.h>
         }
-        if (count>120) count=120; if (delay>60) delay=60;
         vTaskDelay(delay*(1000/portTICK_PERIOD_MS));
     }
 }
@@ -223,6 +237,24 @@ void longpress_callback(uint8_t gpio, void *args) {
             inhibit=5;
 }
 
+mqtt_config_t mqttconf=MQTT_DEFAULT_CONFIG;
+char error[]="error";
+static void ota_string() {
+    char *dmtczbaseidx1=NULL;
+    char *otas;
+    if (sysparam_get_string("ota_string", &otas) == SYSPARAM_OK) {
+        mqttconf.host=strtok(otas,";");
+        mqttconf.user=strtok(NULL,";");
+        mqttconf.pass=strtok(NULL,";");
+        dmtczbaseidx1=strtok(NULL,";");
+        pinger_target=strtok(NULL,";");
+    }
+    if (mqttconf.host==NULL) mqttconf.host=error;
+    if (mqttconf.user==NULL) mqttconf.user=error;
+    if (mqttconf.pass==NULL) mqttconf.pass=error;
+    if (dmtczbaseidx1==NULL) idx=1000; else idx=atoi(dmtczbaseidx1);
+    if (pinger_target==NULL) pinger_target=error;
+}
 
 void device_init() {
     adv_button_set_evaluate_delay(10);
@@ -233,6 +265,11 @@ void device_init() {
     gpio_enable(LED_PIN, GPIO_OUTPUT); gpio_write(LED_PIN, 0);
     gpio_enable( RELAY_PIN, GPIO_OUTPUT); gpio_write( RELAY_PIN, 1);
     gpio_set_pullup(SENSOR_PIN, true, true);
+
+    //sysparam_set_string("ota_string", "192.168.178.5;pumpswitch;fakepassword;89;192.168.178.100"); //can be used if not using LCM
+    ota_string();
+    mqtt_client_init(&mqttconf);
+
     xTaskCreate(state_task, "State", 512, NULL, 1, NULL);
     xTaskCreate(inuse_task, "InUse", 512, NULL, 1, NULL);
     xTaskCreate( ping_task, "PingT", 512, NULL, 1, NULL);

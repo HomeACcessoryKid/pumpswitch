@@ -5,6 +5,7 @@ EXTRA_COMPONENTS = \
 	extras/rboot-ota \
     extras/onewire \
     extras/ds18b20 \
+    extras/paho_mqtt_c \
 	$(abspath esp-wolfssl) \
 	$(abspath esp-cjson) \
 	$(abspath esp-homekit) \
