@@ -2,7 +2,7 @@
  *  This drives a pumpswitch
  *  It uses any ESP8266 with as little as 1MB flash. 
  *  GPIO-0 reads a button for manual instructions
- *  GPIO-12 instructs a relay to drive the motor of thepump
+ *  GPIO-12 instructs a relay to drive the motor of the pump
  *  GPIO-13 enables the LED to show the state of the pump
  *  GPIO-2 is used as a single one-wire DS18B20 sensor to measure the watersupply temperature
  *  UDPlogger is used to have remote logging
@@ -62,6 +62,8 @@ int idx; //the domoticz base index
 #define tIN_ix  0
 #define tOUT_fv temp[OUT]
 #define tOUT_ix 1
+#define tDELTA_fv delta_out
+#define tDELTA_ix 3
 char    *pinger_target=NULL;
 
 int inhibit=0; //seconds pump will be inhibited
@@ -163,6 +165,26 @@ void state_task(void *argv) {
             on=false;
             sprintf(status," inhibited for another %d seconds",(inhibit/10+1)*10);
         }
+        
+        //if pump is actived and return temp does not drop by >0.1 degrees in 120s then pump might be broken!
+        float sample_out=0,initial_out=0,delta_out=0;
+        int   sampletimer=0;
+        bool  prev_on=false;
+        if ( !prev_on && on ) {
+            sample_out=initial_out=temp[OUT];
+            sampletimer=12*BEAT; //beats during which we are taking samples, emperical min value @ 80s
+        }
+        if (sampletimer) {
+            if (temp[OUT]<sample_out) sample_out=temp[OUT];
+            sampletimer-=BEAT;
+            if (!sampletimer) { //sampling is done
+                delta_out=10.0*(initial_out-sample_out);//zoom out by 10 for more detail in MQTT
+                PUBLISH(tDELTA); //report delta_out to MQTT
+                printf("Delta-out = %2.3f\n",delta_out);
+            } 
+        }
+        prev_on=on; //store state for next round
+        
         printf("R%2.3f - %2.3f C => %d%s\n", temp[OUT], temp[IN], on, status);
         PUBLISH(tIN);
         PUBLISH(tOUT);
@@ -268,6 +290,7 @@ void device_init() {
 
     //sysparam_set_string("ota_string", "192.168.178.5;pumpswitch;fakepassword;89;192.168.178.100"); //can be used if not using LCM
     ota_string();
+    mqttconf.queue_size=6;
     mqtt_client_init(&mqttconf);
 
     xTaskCreate(state_task, "State", 512, NULL, 1, NULL);
