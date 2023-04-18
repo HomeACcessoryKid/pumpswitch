@@ -128,8 +128,11 @@ void identify(homekit_value_t _value) {
 #define OUT       10 //  return water temperature
 void state_task(void *argv) {
     bool on=true;
-    int timer=RUN, prev_on=0;
+    bool prev_on=false;
+    int  timer=RUN, prev_on_time=0;
+    int  sampletimer=0;
     char status[40];
+    float sample_out=0,initial_out=0,delta_out=0;
     
     ds18b20_addr_t addrs[SENSORS];
     float temps[SENSORS],temp[16];
@@ -153,9 +156,9 @@ void state_task(void *argv) {
         if (isnan(temp[IN])) temp[IN]=99.99F;
         if (temp[IN]>SETPOINT+HYSTERESIS/2) on=true;
         if (temp[IN]<SETPOINT-HYSTERESIS/2) on=false;
-        if (on) prev_on+=BEAT; else prev_on=0;
+        if (on) prev_on_time+=BEAT; else prev_on_time=0;
         timer-=BEAT;
-        if (prev_on>RUN || timer<=0) timer=REPEAT;
+        if (prev_on_time>RUN || timer<=0) timer=REPEAT;
         status[0]=0;
         if (timer<=RUN) {
             on=true;
@@ -167,9 +170,6 @@ void state_task(void *argv) {
         }
         
         //if pump is actived and return temp does not drop by >0.1 degrees in 120s then pump might be broken!
-        float sample_out=0,initial_out=0,delta_out=0;
-        int   sampletimer=0;
-        bool  prev_on=false;
         if ( !prev_on && on ) {
             sample_out=initial_out=temp[OUT];
             sampletimer=12*BEAT; //beats during which we are taking samples, emperical min value @ 80s
