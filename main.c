@@ -121,7 +121,7 @@ void identify(homekit_value_t _value) {
 
 #define BEAT      10 //in seconds
 #define REPEAT  3600 //in seconds = 1 hour
-#define RUN      180 //in seconds = 3 minutes
+#define RUN  12*BEAT //in seconds = 2 minutes
 #define STOP_FOR 180 //in seconds = 3 minutes, must be multiple of BEAT
 #define SENSORS    2
 #define  IN       14 //incoming water temperature
@@ -153,9 +153,12 @@ void state_task(void *argv) {
             temp[id] = temps[j];
 //             printf("id=%d %2.4f\n",id,temps[j]);
         } 
-        if (isnan(temp[IN])) temp[IN]=99.99F;
-        if (temp[IN]>SETPOINT+HYSTERESIS/2) on=true;
-        if (temp[IN]<SETPOINT-HYSTERESIS/2) on=false;
+        if (isnan(temp[OUT])) temp[OUT]=99.99F;
+        if (isnan(temp[IN]))  temp[IN] =99.99F;
+        else { //do not change state if broken input
+            if (temp[IN]>SETPOINT+HYSTERESIS/2) on=true;
+            if (temp[IN]<SETPOINT-HYSTERESIS/2) on=false;
+        }
         if (on) prev_on_time+=BEAT; else prev_on_time=0;
         timer-=BEAT;
         if (prev_on_time>RUN || timer<=0) timer=REPEAT;
@@ -172,15 +175,17 @@ void state_task(void *argv) {
         //if pump is actived and return temp does not drop by >0.1 degrees in 120s then pump might be broken!
         if ( !prev_on && on ) {
             sample_out=initial_out=temp[OUT];
-            sampletimer=12*BEAT; //beats during which we are taking samples, emperical min value @ 80s
+            sampletimer=RUN; //beats during which we are taking samples
         }
         if (sampletimer) {
             if (temp[OUT]<sample_out) sample_out=temp[OUT];
             sampletimer-=BEAT;
             if (!sampletimer) { //sampling is done
-                delta_out=10.0*(initial_out-sample_out);//zoom out by 10 for more detail in MQTT
+                delta_out=initial_out-sample_out;
+                printf("Delta-out= %2.3f\n",delta_out);
+                if (delta_out>1.0) delta_out=1.0; //not interested in bigger values
+                delta_out*=16.0; //zoom out by 16 for more detail in MQTT. Samples are 1/16th degree granularity
                 PUBLISH(tDELTA); //report delta_out to MQTT
-                printf("Delta-out = %2.3f\n",delta_out);
             } 
         }
         prev_on=on; //store state for next round
