@@ -62,7 +62,7 @@ int idx; //the domoticz base index
 #define tIN_ix  0
 #define tOUT_fv temp[OUT]
 #define tOUT_ix 1
-#define tDELTA_fv delta_out
+#define tDELTA_fv (delta_out*16.0) //zoom out by 16 for more detail in MQTT. Samples are 1/16th degree granularity
 #define tDELTA_ix 3
 char    *pinger_target=NULL;
 
@@ -175,7 +175,7 @@ void state_task(void *argv) {
         //if pump is actived and return temp does not drop by >0.1 degrees in 120s then pump might be broken!
         if ( !prev_on && on ) {
             sample_out=initial_out=temp[OUT];
-            sampletimer=RUN; //beats during which we are taking samples
+            sampletimer=RUN+BEAT; //beats during which we are taking samples
         }
         if (sampletimer) {
             if (temp[OUT]<sample_out) sample_out=temp[OUT];
@@ -184,7 +184,6 @@ void state_task(void *argv) {
                 delta_out=initial_out-sample_out;
                 printf("Delta-out= %2.3f\n",delta_out);
                 if (delta_out>1.0) delta_out=1.0; //not interested in bigger values
-                delta_out*=16.0; //zoom out by 16 for more detail in MQTT. Samples are 1/16th degree granularity
                 PUBLISH(tDELTA); //report delta_out to MQTT
             } 
         }
