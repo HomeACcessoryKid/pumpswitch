@@ -132,7 +132,7 @@ void state_task(void *argv) {
     int  timer=RUN, prev_on_time=0;
     int  sampletimer=0;
     char status[40];
-    float sample_out=0,initial_out=0,delta_out=0;
+    float sample_max=0,sample_min=100,delta_out=0;
     
     ds18b20_addr_t addrs[SENSORS];
     float temps[SENSORS],temp[16];
@@ -174,14 +174,15 @@ void state_task(void *argv) {
         
         //if pump is actived and return temp does not drop by >0.1 degrees in 120s then pump might be broken!
         if ( !prev_on && on ) {
-            sample_out=initial_out=temp[OUT];
+            sample_max=sample_min=temp[OUT];
             sampletimer=RUN+BEAT; //beats during which we are taking samples
         }
-        if (sampletimer) {
-            if (temp[OUT]<sample_out) sample_out=temp[OUT];
+        if (sampletimer) { //delta is between the MIN and the MAX of the samples, not just the start value
+            if (temp[OUT]<sample_min) sample_min=temp[OUT];
+            if (temp[OUT]>sample_max) sample_max=temp[OUT];
             sampletimer-=BEAT;
             if (!sampletimer) { //sampling is done
-                delta_out=initial_out-sample_out;
+                delta_out=sample_max-sample_min;
                 printf("Delta-out= %2.3f\n",delta_out);
                 if (delta_out>1.0) delta_out=1.0; //not interested in bigger values
                 PUBLISH(tDELTA); //report delta_out to MQTT
