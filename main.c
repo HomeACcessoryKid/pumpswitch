@@ -62,7 +62,7 @@ int idx; //the domoticz base index
 #define tIN_ix  0
 #define tOUT_fv temp[OUT]
 #define tOUT_ix 1
-#define tDELTA_fv (delta_out*16.0) //zoom out by 16 for more detail in MQTT. Samples are 1/16th degree granularity
+#define tDELTA_fv ((delta5+delta4+delta3+delta2+delta1+delta_out)*16.0) //zoom out by 16 for more detail in MQTT. Samples are 1/16th degree granularity
 #define tDELTA_ix 3
 char    *pinger_target=NULL;
 
@@ -133,6 +133,7 @@ void state_task(void *argv) {
     int  sampletimer=0;
     char status[40];
     float sample_max=0,sample_min=100,delta_out=0;
+    float delta5=0.0, delta4=0.0, delta3=0.0, delta2=0.0, delta1=0.0625;
     
     ds18b20_addr_t addrs[SENSORS];
     float temps[SENSORS],temp[16];
@@ -186,6 +187,7 @@ void state_task(void *argv) {
                 printf("Delta-out= %2.3f\n",delta_out);
                 if (delta_out>1.0) delta_out=1.0; //not interested in bigger values
                 PUBLISH(tDELTA); //report delta_out to MQTT
+                delta5=delta4; delta4=delta3; delta3=delta2; delta2=delta1; delta1=delta_out; 
             } 
         }
         prev_on=on; //store state for next round
