@@ -120,7 +120,7 @@ void identify(homekit_value_t _value) {
 
 
 #define BEAT      10 //in seconds
-#define REPEAT  3600 //in seconds = 1 hour
+#define REPEAT 10800 //in seconds = 3 hour
 #define RUN  12*BEAT //in seconds = 2 minutes
 #define STOP_FOR 180 //in seconds = 3 minutes, must be multiple of BEAT
 #define SENSORS    2
@@ -164,13 +164,13 @@ void state_task(void *argv) {
         timer-=BEAT;
         if (prev_on_time>RUN || timer<=0) timer=REPEAT;
         status[0]=0;
-        if (timer<=RUN) {
-            on=true;
-            strcpy(status," TIMER activated");
-        }
         if (inhibit) {
             on=false;
             sprintf(status," inhibited for another %d seconds",(inhibit/10+1)*10);
+        }
+        if (timer<=RUN) {
+            on=true;
+            strcpy(status," TIMER activated");
         }
         
         //if pump is actived and return temp does not drop by >0.1 degrees in 120s then pump might be broken!
