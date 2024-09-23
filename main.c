@@ -146,6 +146,11 @@ void state_task(void *argv) {
     }
 
     while(1) {
+        timer-=BEAT;
+        if (timer<=0) {
+            timer=REPEAT;
+            on=false;
+        }
         ds18b20_measure_and_read_multi(SENSOR_PIN, addrs, SENSORS, temps);
         for (int j = 0; j < SENSORS; j++) {
             // The DS18B20 address 64-bit and my batch turns out family C on https://github.com/cpetrich/counterfeit_DS18B20
@@ -161,8 +166,7 @@ void state_task(void *argv) {
             if (temp[IN]<SETPOINT-HYSTERESIS/2) on=false;
         }
         if (on) prev_on_time+=BEAT; else prev_on_time=0;
-        timer-=BEAT;
-        if (prev_on_time>RUN || timer<=0) timer=REPEAT;
+        if (prev_on_time>RUN) timer=REPEAT;
         status[0]=0;
         if (inhibit) {
             on=false;
