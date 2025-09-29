@@ -289,7 +289,13 @@ static void ota_string() {
     if (pinger_target==NULL) pinger_target=error;
 }
 
+homekit_server_config_t config;
 void device_init() {
+  if (homekit_is_paired()) {
+    config.on_event=NULL;
+    udplog_init(3);
+    UDPLUS("\n\n\nPumpSwitch " VERSION "\n");
+
     adv_button_set_evaluate_delay(10);
     adv_button_create(BUTTON_PIN, true, false);
     adv_button_register_callback_fn(BUTTON_PIN, singlepress_callback, 1, NULL);
@@ -307,6 +313,7 @@ void device_init() {
     xTaskCreate(state_task, "State", 512, NULL, 1, NULL);
     xTaskCreate(inuse_task, "InUse", 512, NULL, 1, NULL);
     xTaskCreate( ping_task, "PingT", 512, NULL, 1, NULL);
+  }
 }
 
 homekit_accessory_t *accessories[] = {
@@ -346,15 +353,13 @@ homekit_accessory_t *accessories[] = {
 
 homekit_server_config_t config = {
     .accessories = accessories,
+    .on_event=device_init,
     .password = "111-11-111"
 };
 
 
 void user_init(void) {
     uart_set_baud(0, 115200);
-    udplog_init(3);
-    UDPLUS("\n\n\nPumpSwitch " VERSION "\n");
-
     device_init();
     
     int c_hash=ota_read_sysparam(&manufacturer.value.string_value,&serial.value.string_value,
